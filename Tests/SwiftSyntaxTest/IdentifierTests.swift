@@ -36,6 +36,48 @@ class IdentifierTests: XCTestCase {
     XCTAssertEqual(Identifier(unicodeNormalizedToken)?.name, "\u{61}\u{300}")  // "à"
   }
 
+  public func testHashableMatchesEquality() {
+    // Each token lives in its own arena, so these also compare identifiers from different trees.
+    let equalPairs: [(TokenSyntax, TokenSyntax)] = [
+      ("Inner", "`Inner`"),
+      ("Inner", "Inner"),
+      ("\u{e0}", "\u{61}\u{300}"),
+      (.dollarIdentifier("$01"), .dollarIdentifier("$1")),
+    ]
+    withExtendedLifetime(equalPairs) { equalPairs in
+      for (lhsToken, rhsToken) in equalPairs {
+        let lhs = Identifier(lhsToken)
+        let rhs = Identifier(rhsToken)
+        XCTAssertEqual(lhs, rhs)
+        XCTAssertEqual(lhs.hashValue, rhs.hashValue)
+        XCTAssertEqual(Set([lhs, rhs]).count, 1)
+      }
+    }
+
+    let token = TokenSyntax(stringLiteral: "Inner")
+    withExtendedLifetime(token) { token in
+      let canonical = Identifier(canonicalName: "Inner")
+      XCTAssertEqual(Identifier(token), canonical)
+      XCTAssertEqual(Identifier(token)?.hashValue, canonical.hashValue)
+    }
+  }
+
+  public func testHashableKeepsUnequalIdentifiersApart() {
+    let unequalPairs: [(TokenSyntax, TokenSyntax)] = [
+      ("Inner", "inner"),
+      ("``Inner``", "Inner"),
+      (.dollarIdentifier("$01"), .dollarIdentifier("$10")),
+    ]
+    withExtendedLifetime(unequalPairs) { unequalPairs in
+      for (lhsToken, rhsToken) in unequalPairs {
+        let lhs = Identifier(lhsToken)
+        let rhs = Identifier(rhsToken)
+        XCTAssertNotEqual(lhs, rhs)
+        XCTAssertEqual(Set([lhs, rhs]).count, 2)
+      }
+    }
+  }
+
   public func testIdentifier() {
     let token = TokenSyntax(stringLiteral: "sometoken")
     withExtendedLifetime(token) { token in
